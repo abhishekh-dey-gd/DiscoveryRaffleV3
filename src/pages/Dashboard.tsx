@@ -1,33 +1,60 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, Trophy, BarChart3, Dice6 } from 'lucide-react';
+import { Users, Trophy, BarChart3, Dice6, Ticket } from 'lucide-react';
 import Layout from '../components/Layout';
 import Navigation from '../components/Navigation';
 import GlassCard from '../components/GlassCard';
 import { getAllContestants, getContestantsByDepartment } from '../utils/raffle';
 import { getWinners } from '../utils/storage';
+import type { DrawType } from '../types';
 
 export default function Dashboard() {
-  const allContestants = getAllContestants();
+  const contestants70 = getAllContestants('discovery-70');
+  const contestants80 = getAllContestants('discovery-80');
+  const allContestants = [...contestants70, ...contestants80];
   const winners = getWinners();
   
   const departmentStats = [
-    { name: 'International Messaging', count: getContestantsByDepartment('International Messaging').length },
-    { name: 'India Messaging', count: getContestantsByDepartment('India Messaging').length },
-    { name: 'APAC', count: getContestantsByDepartment('APAC').length },
+    { 
+      name: 'International Messaging', 
+      count70: getContestantsByDepartment('International Messaging', 'discovery-70').length,
+      count80: getContestantsByDepartment('International Messaging', 'discovery-80').length
+    },
+    { 
+      name: 'India Messaging', 
+      count70: getContestantsByDepartment('India Messaging', 'discovery-70').length,
+      count80: getContestantsByDepartment('India Messaging', 'discovery-80').length
+    },
+    { 
+      name: 'APAC', 
+      count70: getContestantsByDepartment('APAC', 'discovery-70').length,
+      count80: getContestantsByDepartment('APAC', 'discovery-80').length
+    },
   ];
 
   const winnersByDepartment = {
-    'International Messaging': winners.filter(w => w.department === 'International Messaging').length,
-    'India Messaging': winners.filter(w => w.department === 'India Messaging').length,
-    'APAC': winners.filter(w => w.department === 'APAC').length,
+    'International Messaging': {
+      discovery70: winners.filter(w => w.department === 'International Messaging' && w.drawType === 'discovery-70').length,
+      discovery80: winners.filter(w => w.department === 'International Messaging' && w.drawType === 'discovery-80').length,
+    },
+    'India Messaging': {
+      discovery70: winners.filter(w => w.department === 'India Messaging' && w.drawType === 'discovery-70').length,
+      discovery80: winners.filter(w => w.department === 'India Messaging' && w.drawType === 'discovery-80').length,
+    },
+    'APAC': {
+      discovery70: winners.filter(w => w.department === 'APAC' && w.drawType === 'discovery-70').length,
+      discovery80: winners.filter(w => w.department === 'APAC' && w.drawType === 'discovery-80').length,
+    },
   };
+
+  const totalTickets70 = contestants70.reduce((sum, c) => sum + c.tickets, 0);
+  const totalTickets80 = contestants80.reduce((sum, c) => sum + c.tickets, 0);
 
   const quickActions = [
     {
       title: 'Start Raffle',
-      description: 'Draw winners from the contestant pool',
+      description: 'Draw winners from 70% or 80% Discovery pools',
       icon: Dice6,
       link: '/raffle',
       color: 'from-green-400 to-emerald-600'
@@ -59,7 +86,8 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-white/80 text-sm font-medium">Total Contestants</h3>
-                <p className="text-3xl font-bold text-white mt-1">{allContestants.length}</p>
+                <p className="text-3xl font-bold text-white mt-1">{contestants70.length + contestants80.length}</p>
+                <p className="text-white/60 text-xs mt-1">70%: {contestants70.length} • 80%: {contestants80.length}</p>
               </div>
               <div className="p-3 rounded-full bg-blue-500/20 backdrop-blur-md">
                 <Users className="w-6 h-6 text-blue-300" />
@@ -72,6 +100,10 @@ export default function Dashboard() {
               <div>
                 <h3 className="text-white/80 text-sm font-medium">Total Winners</h3>
                 <p className="text-3xl font-bold text-white mt-1">{winners.length}</p>
+                <p className="text-white/60 text-xs mt-1">
+                  70%: {winners.filter(w => w.drawType === 'discovery-70').length} • 
+                  80%: {winners.filter(w => w.drawType === 'discovery-80').length}
+                </p>
               </div>
               <div className="p-3 rounded-full bg-green-500/20 backdrop-blur-md">
                 <Trophy className="w-6 h-6 text-green-300" />
@@ -82,11 +114,12 @@ export default function Dashboard() {
           <GlassCard className="p-6" hover>
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-white/80 text-sm font-medium">Departments</h3>
-                <p className="text-3xl font-bold text-white mt-1">3</p>
+                <h3 className="text-white/80 text-sm font-medium">Total Tickets</h3>
+                <p className="text-3xl font-bold text-white mt-1">{totalTickets70 + totalTickets80}</p>
+                <p className="text-white/60 text-xs mt-1">70%: {totalTickets70} • 80%: {totalTickets80}</p>
               </div>
-              <div className="p-3 rounded-full bg-purple-500/20 backdrop-blur-md">
-                <BarChart3 className="w-6 h-6 text-purple-300" />
+              <div className="p-3 rounded-full bg-orange-500/20 backdrop-blur-md">
+                <Ticket className="w-6 h-6 text-orange-300" />
               </div>
             </div>
           </GlassCard>
@@ -95,10 +128,11 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-white/80 text-sm font-medium">Remaining Pool</h3>
-                <p className="text-3xl font-bold text-white mt-1">{allContestants.length - winners.length}</p>
+                <p className="text-3xl font-bold text-white mt-1">{contestants70.length + contestants80.length - winners.length}</p>
+                <p className="text-white/60 text-xs mt-1">Available for draws</p>
               </div>
-              <div className="p-3 rounded-full bg-orange-500/20 backdrop-blur-md">
-                <Dice6 className="w-6 h-6 text-orange-300" />
+              <div className="p-3 rounded-full bg-purple-500/20 backdrop-blur-md">
+                <Dice6 className="w-6 h-6 text-purple-300" />
               </div>
             </div>
           </GlassCard>
@@ -137,9 +171,15 @@ export default function Dashboard() {
             <h3 className="text-xl font-bold text-white mb-4">Contestants by Department</h3>
             <div className="space-y-3">
               {departmentStats.map((dept) => (
-                <div key={dept.name} className="flex justify-between items-center p-3 rounded-lg bg-white/10 backdrop-blur-md">
+                <div key={dept.name} className="p-3 rounded-lg bg-white/10 backdrop-blur-md">
+                  <div className="flex justify-between items-center mb-2">
                   <span className="text-white font-medium">{dept.name}</span>
-                  <span className="text-white/80">{dept.count} contestants</span>
+                    <span className="text-white/80">{dept.count70 + dept.count80} total</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-white/60">
+                    <span>70% Discovery: {dept.count70}</span>
+                    <span>80% Discovery: {dept.count80}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -149,9 +189,15 @@ export default function Dashboard() {
             <h3 className="text-xl font-bold text-white mb-4">Winners by Department</h3>
             <div className="space-y-3">
               {Object.entries(winnersByDepartment).map(([dept, count]) => (
-                <div key={dept} className="flex justify-between items-center p-3 rounded-lg bg-white/10 backdrop-blur-md">
+                <div key={dept} className="p-3 rounded-lg bg-white/10 backdrop-blur-md">
+                  <div className="flex justify-between items-center mb-2">
                   <span className="text-white font-medium">{dept}</span>
-                  <span className="text-white/80">{count} winners</span>
+                    <span className="text-white/80">{counts.discovery70 + counts.discovery80} total</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-white/60">
+                    <span>70% Discovery: {counts.discovery70}</span>
+                    <span>80% Discovery: {counts.discovery80}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -168,6 +214,8 @@ export default function Dashboard() {
                   <tr className="border-b border-white/20">
                     <th className="text-left text-white/80 py-3 px-4">Name</th>
                     <th className="text-left text-white/80 py-3 px-4">Department</th>
+                    <th className="text-left text-white/80 py-3 px-4">Draw Type</th>
+                    <th className="text-left text-white/80 py-3 px-4">Tickets</th>
                     <th className="text-left text-white/80 py-3 px-4">Draw Date</th>
                   </tr>
                 </thead>
@@ -176,6 +224,16 @@ export default function Dashboard() {
                     <tr key={winner.id} className="border-b border-white/10">
                       <td className="py-3 px-4 text-white font-medium">{winner.name}</td>
                       <td className="py-3 px-4 text-white/80">{winner.department}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          winner.drawType === 'discovery-70' 
+                            ? 'bg-blue-500/20 text-blue-200' 
+                            : 'bg-purple-500/20 text-purple-200'
+                        }`}>
+                          {winner.drawType === 'discovery-70' ? '70%' : '80%'} Discovery
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-yellow-400 font-bold">{winner.tickets}</td>
                       <td className="py-3 px-4 text-white/80">
                         {new Date(winner.drawDate).toLocaleDateString()}
                       </td>

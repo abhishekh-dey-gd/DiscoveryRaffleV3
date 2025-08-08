@@ -3,11 +3,25 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../components/Layout';
 import Navigation from '../components/Navigation';
 import GlassCard from '../components/GlassCard';
-import { Trophy, Users, Clock, Play, Settings, Sparkles } from 'lucide-react';
-import type { Contestant, Winner } from '../types';
+import { Trophy, Users, Clock, Play, Settings, Sparkles, Ticket } from 'lucide-react';
+import type { Contestant, Winner, DrawType } from '../types';
 import { getWinners, addWinner } from '../utils/storage';
 import { getAllContestants, drawWinners } from '../utils/raffle';
 
+const drawConfigs = [
+  {
+    id: 'discovery-70' as DrawType,
+    name: '70% Discovery',
+    description: 'First discovery raffle draw',
+    color: 'from-blue-500 to-cyan-600'
+  },
+  {
+    id: 'discovery-80' as DrawType,
+    name: '80% Discovery',
+    description: 'Second discovery raffle draw',
+    color: 'from-purple-500 to-pink-600'
+  }
+];
 export const Raffle: React.FC = () => {
   const [contestants, setContestants] = useState<Contestant[]>([]);
   const [winners, setWinners] = useState<Winner[]>([]);
@@ -15,16 +29,17 @@ export const Raffle: React.FC = () => {
   const [currentWinners, setCurrentWinners] = useState<Contestant[]>([]);
   const [numberOfWinners, setNumberOfWinners] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
+  const [selectedDraw, setSelectedDraw] = useState<DrawType>('discovery-70');
   const [animationPhase, setAnimationPhase] = useState<'idle' | 'shaking' | 'picking' | 'revealing'>('idle');
   const [floatingChits, setFloatingChits] = useState<Array<{ id: number; x: number; y: number; delay: number }>>([]);
 
   useEffect(() => {
-    setContestants(getAllContestants());
-    setWinners(getWinners());
-  }, []);
+    setContestants(getAllContestants(selectedDraw));
+    setWinners(getWinners(selectedDraw));
+  }, [selectedDraw]);
 
   const handleDraw = async () => {
-    const existingWinnerNames = winners.map(w => w.name);
+    const existingWinnerNames = winners.filter(w => w.drawType === selectedDraw).map(w => w.name);
     const eligibleContestants = contestants.filter(c => !existingWinnerNames.includes(c.name));
     
     if (eligibleContestants.length === 0) return;
@@ -61,7 +76,7 @@ export const Raffle: React.FC = () => {
       setCurrentWinners(prev => [...prev, selectedWinners[i]]);
       
       // Add winner to storage
-      const newWinner = addWinner(selectedWinners[i]);
+      const newWinner = addWinner(selectedWinners[i], selectedDraw);
       setWinners(prev => [...prev, newWinner]);
     }
 
@@ -72,15 +87,46 @@ export const Raffle: React.FC = () => {
     setFloatingChits([]);
   };
 
-  const existingWinnerNames = winners.map(w => w.name);
+  const existingWinnerNames = winners.filter(w => w.drawType === selectedDraw).map(w => w.name);
   const eligibleContestants = contestants.filter(c => !existingWinnerNames.includes(c.name));
   const maxWinners = Math.min(10, eligibleContestants.length);
+  const currentDrawConfig = drawConfigs.find(d => d.id === selectedDraw)!;
+  const totalTickets = eligibleContestants.reduce((sum, c) => sum + c.tickets, 0);
 
   return (
     <Layout title="Raffle Draw">
       <Navigation />
       
       <div className="space-y-8">
+        {/* Draw Selection */}
+        <GlassCard className="p-6">
+          <h3 className="text-xl font-bold text-white mb-4">Select Draw Type</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {drawConfigs.map((config) => (
+              <motion.button
+                key={config.id}
+                onClick={() => setSelectedDraw(config.id)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`p-6 rounded-xl border-2 transition-all duration-200 ${
+                  selectedDraw === config.id
+                    ? 'border-white/50 bg-white/20'
+                    : 'border-white/20 bg-white/10 hover:bg-white/15'
+                }`}
+              >
+                <div className={`w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r ${config.color} flex items-center justify-center`}>
+                  <Trophy className="w-6 h-6 text-white" />
+                </div>
+                <h4 className="text-lg font-bold text-white mb-2">{config.name}</h4>
+                <p className="text-white/70 text-sm mb-3">{config.description}</p>
+                <div className="text-white/60 text-xs">
+                  {getAllContestants(config.id).length} contestants • {getWinners(config.id).length} winners
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </GlassCard>
+
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <GlassCard className="p-6" hover>
@@ -88,6 +134,7 @@ export const Raffle: React.FC = () => {
               <div>
                 <h3 className="text-white/80 text-sm font-medium">Total Contestants</h3>
                 <p className="text-3xl font-bold text-white mt-1">{contestants.length}</p>
+                <p className="text-white/60 text-xs mt-1">{currentDrawConfig.name}</p>
               </div>
               <div className="p-3 rounded-full bg-blue-500/20 backdrop-blur-md">
                 <Users className="w-6 h-6 text-blue-300" />
@@ -100,6 +147,7 @@ export const Raffle: React.FC = () => {
               <div>
                 <h3 className="text-white/80 text-sm font-medium">Eligible</h3>
                 <p className="text-3xl font-bold text-white mt-1">{eligibleContestants.length}</p>
+                <p className="text-white/60 text-xs mt-1">Available for draw</p>
               </div>
               <div className="p-3 rounded-full bg-green-500/20 backdrop-blur-md">
                 <Clock className="w-6 h-6 text-green-300" />
@@ -110,11 +158,12 @@ export const Raffle: React.FC = () => {
           <GlassCard className="p-6" hover>
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-white/80 text-sm font-medium">Total Winners</h3>
-                <p className="text-3xl font-bold text-white mt-1">{winners.length}</p>
+                <h3 className="text-white/80 text-sm font-medium">Total Tickets</h3>
+                <p className="text-3xl font-bold text-white mt-1">{totalTickets}</p>
+                <p className="text-white/60 text-xs mt-1">In eligible pool</p>
               </div>
-              <div className="p-3 rounded-full bg-yellow-500/20 backdrop-blur-md">
-                <Trophy className="w-6 h-6 text-yellow-300" />
+              <div className="p-3 rounded-full bg-orange-500/20 backdrop-blur-md">
+                <Ticket className="w-6 h-6 text-orange-300" />
               </div>
             </div>
           </GlassCard>
@@ -124,6 +173,7 @@ export const Raffle: React.FC = () => {
               <div>
                 <h3 className="text-white/80 text-sm font-medium">To Draw</h3>
                 <p className="text-3xl font-bold text-white mt-1">{numberOfWinners}</p>
+                <p className="text-white/60 text-xs mt-1">Winners to select</p>
               </div>
               <div className="p-3 rounded-full bg-purple-500/20 backdrop-blur-md">
                 <Sparkles className="w-6 h-6 text-purple-300" />
@@ -253,15 +303,19 @@ export const Raffle: React.FC = () => {
                         initial={{ opacity: 0, y: 50, scale: 0.8 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         transition={{ delay: index * 0.2 }}
-                        className="p-6 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-xl border border-yellow-500/30 backdrop-blur-md"
+                        className={`p-6 bg-gradient-to-br ${currentDrawConfig.color}/20 rounded-xl border border-white/30 backdrop-blur-md`}
                       >
                         <div className="text-center">
-                          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 flex items-center justify-center text-white font-bold text-lg">
+                          <div className={`w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r ${currentDrawConfig.color} flex items-center justify-center text-white font-bold text-lg`}>
                             {index + 1}
                           </div>
                           <h3 className="text-xl font-bold text-white mb-2">{winner.name}</h3>
                           <p className="text-white/80 text-sm mb-1">{winner.department}</p>
-                          <p className="text-white/60 text-xs">Supervisor: {winner.supervisor}</p>
+                          <p className="text-white/60 text-xs mb-2">Supervisor: {winner.supervisor}</p>
+                          <div className="flex items-center justify-center space-x-1">
+                            <Ticket className="w-4 h-4 text-yellow-400" />
+                            <span className="text-yellow-400 font-bold">{winner.tickets} tickets</span>
+                          </div>
                         </div>
                       </motion.div>
                     ))}
@@ -314,7 +368,7 @@ export const Raffle: React.FC = () => {
                 disabled={isDrawing || eligibleContestants.length === 0}
                 whileHover={{ scale: isDrawing ? 1 : 1.05 }}
                 whileTap={{ scale: isDrawing ? 1 : 0.95 }}
-                className="flex items-center space-x-2 px-8 py-4 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg"
+                className={`flex items-center space-x-2 px-8 py-4 rounded-lg bg-gradient-to-r ${currentDrawConfig.color} text-white font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg`}
               >
                 <Play className="w-5 h-5" />
                 <span>
@@ -322,7 +376,7 @@ export const Raffle: React.FC = () => {
                     ? 'Drawing...' 
                     : eligibleContestants.length === 0 
                       ? 'No Eligible Contestants' 
-                      : `Draw ${numberOfWinners} Winner${numberOfWinners > 1 ? 's' : ''}`
+                      : `Draw ${numberOfWinners} Winner${numberOfWinners > 1 ? 's' : ''} (${currentDrawConfig.name})`
                   }
                 </span>
               </motion.button>
@@ -381,8 +435,14 @@ export const Raffle: React.FC = () => {
           <GlassCard className="p-6">
             <h3 className="text-xl font-bold text-white mb-6 flex items-center">
               <Users className="w-6 h-6 mr-2" />
-              Eligible Contestants ({eligibleContestants.length})
+              Eligible Contestants for {currentDrawConfig.name} ({eligibleContestants.length})
             </h3>
+            <div className="mb-4 p-4 bg-white/10 rounded-lg">
+              <p className="text-white/80 text-sm">
+                <strong>Ticket-based probability:</strong> Contestants with more tickets have higher chances of winning. 
+                Total tickets in pool: <span className="text-yellow-400 font-bold">{totalTickets}</span>
+              </p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {eligibleContestants.map((contestant) => (
                 <motion.div
@@ -393,7 +453,16 @@ export const Raffle: React.FC = () => {
                 >
                   <h4 className="font-semibold text-white mb-1">{contestant.name}</h4>
                   <p className="text-white/70 text-sm mb-1">{contestant.department}</p>
-                  <p className="text-white/50 text-xs">Supervisor: {contestant.supervisor}</p>
+                  <p className="text-white/50 text-xs mb-2">Supervisor: {contestant.supervisor}</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1">
+                      <Ticket className="w-4 h-4 text-yellow-400" />
+                      <span className="text-yellow-400 font-bold text-sm">{contestant.tickets}</span>
+                    </div>
+                    <span className="text-white/60 text-xs">
+                      {Math.round((contestant.tickets / totalTickets) * 100)}% chance
+                    </span>
+                  </div>
                 </motion.div>
               ))}
             </div>

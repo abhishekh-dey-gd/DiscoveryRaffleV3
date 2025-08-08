@@ -1,16 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Search, Download, Trash2, Filter, Users } from 'lucide-react';
+import { Trophy, Search, Download, Trash2, Filter, Users, Ticket } from 'lucide-react';
 import Layout from '../components/Layout';
 import Navigation from '../components/Navigation';
 import GlassCard from '../components/GlassCard';
 import { getWinners, clearWinners } from '../utils/storage';
 import { exportToCSV } from '../utils/raffle';
-import type { Department } from '../types';
+import type { Department, DrawType } from '../types';
 
 export default function Winners() {
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState<Department | 'all'>('all');
+  const [drawTypeFilter, setDrawTypeFilter] = useState<DrawType | 'all'>('all');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const winners = getWinners();
@@ -30,13 +31,34 @@ export default function Winners() {
       filtered = filtered.filter(winner => winner.department === departmentFilter);
     }
 
+    if (drawTypeFilter !== 'all') {
+      filtered = filtered.filter(winner => winner.drawType === drawTypeFilter);
+    }
+
     return filtered.sort((a, b) => new Date(b.drawDate).getTime() - new Date(a.drawDate).getTime());
-  }, [winners, searchQuery, departmentFilter]);
+  }, [winners, searchQuery, departmentFilter, drawTypeFilter]);
 
   const departmentStats = {
-    'International Messaging': winners.filter(w => w.department === 'International Messaging').length,
-    'India Messaging': winners.filter(w => w.department === 'India Messaging').length,
-    'APAC': winners.filter(w => w.department === 'APAC').length,
+    'International Messaging': {
+      total: winners.filter(w => w.department === 'International Messaging').length,
+      discovery70: winners.filter(w => w.department === 'International Messaging' && w.drawType === 'discovery-70').length,
+      discovery80: winners.filter(w => w.department === 'International Messaging' && w.drawType === 'discovery-80').length,
+    },
+    'India Messaging': {
+      total: winners.filter(w => w.department === 'India Messaging').length,
+      discovery70: winners.filter(w => w.department === 'India Messaging' && w.drawType === 'discovery-70').length,
+      discovery80: winners.filter(w => w.department === 'India Messaging' && w.drawType === 'discovery-80').length,
+    },
+    'APAC': {
+      total: winners.filter(w => w.department === 'APAC').length,
+      discovery70: winners.filter(w => w.department === 'APAC' && w.drawType === 'discovery-70').length,
+      discovery80: winners.filter(w => w.department === 'APAC' && w.drawType === 'discovery-80').length,
+    },
+  };
+
+  const drawTypeStats = {
+    'discovery-70': winners.filter(w => w.drawType === 'discovery-70').length,
+    'discovery-80': winners.filter(w => w.drawType === 'discovery-80').length,
   };
 
   const handleExport = () => {
@@ -55,7 +77,7 @@ export default function Winners() {
       
       <div className="space-y-8">
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <GlassCard className="p-6" hover>
             <div className="flex items-center justify-between">
               <div>
@@ -68,12 +90,37 @@ export default function Winners() {
             </div>
           </GlassCard>
 
-          {Object.entries(departmentStats).map(([dept, count]) => (
+          <GlassCard className="p-6" hover>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-white/80 text-sm font-medium">70% Discovery</h3>
+                <p className="text-3xl font-bold text-white mt-1">{drawTypeStats['discovery-70']}</p>
+              </div>
+              <div className="p-3 rounded-full bg-blue-500/20 backdrop-blur-md">
+                <Trophy className="w-6 h-6 text-blue-300" />
+              </div>
+            </div>
+          </GlassCard>
+
+          <GlassCard className="p-6" hover>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-white/80 text-sm font-medium">80% Discovery</h3>
+                <p className="text-3xl font-bold text-white mt-1">{drawTypeStats['discovery-80']}</p>
+              </div>
+              <div className="p-3 rounded-full bg-purple-500/20 backdrop-blur-md">
+                <Trophy className="w-6 h-6 text-purple-300" />
+              </div>
+            </div>
+          </GlassCard>
+
+          {Object.entries(departmentStats).slice(0, 2).map(([dept, stats]) => (
             <GlassCard key={dept} className="p-6" hover>
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-white/80 text-sm font-medium">{dept.replace(' Messaging', '')}</h3>
-                  <p className="text-3xl font-bold text-white mt-1">{count}</p>
+                  <p className="text-3xl font-bold text-white mt-1">{stats.total}</p>
+                  <p className="text-white/60 text-xs mt-1">70%: {stats.discovery70} • 80%: {stats.discovery80}</p>
                 </div>
                 <div className="p-3 rounded-full bg-blue-500/20 backdrop-blur-md">
                   <Users className="w-6 h-6 text-blue-300" />
@@ -86,7 +133,7 @@ export default function Winners() {
         {/* Controls */}
         <GlassCard className="p-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="flex flex-col sm:flex-row gap-4 flex-1">
+            <div className="flex flex-col sm:flex-row gap-4 flex-1 max-w-4xl">
               {/* Search */}
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/60" />
@@ -111,6 +158,20 @@ export default function Winners() {
                   <option value="International Messaging">International Messaging</option>
                   <option value="India Messaging">India Messaging</option>
                   <option value="APAC">APAC</option>
+                </select>
+              </div>
+
+              {/* Draw Type Filter */}
+              <div className="relative">
+                <Trophy className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/60" />
+                <select
+                  value={drawTypeFilter}
+                  onChange={(e) => setDrawTypeFilter(e.target.value as DrawType | 'all')}
+                  className="pl-10 pr-8 py-3 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50"
+                >
+                  <option value="all">All Draws</option>
+                  <option value="discovery-70">70% Discovery</option>
+                  <option value="discovery-80">80% Discovery</option>
                 </select>
               </div>
             </div>
@@ -157,6 +218,8 @@ export default function Winners() {
                     <th className="text-left text-white/80 py-3 px-4 font-medium">Name</th>
                     <th className="text-left text-white/80 py-3 px-4 font-medium">Department</th>
                     <th className="text-left text-white/80 py-3 px-4 font-medium">Supervisor</th>
+                    <th className="text-left text-white/80 py-3 px-4 font-medium">Tickets</th>
+                    <th className="text-left text-white/80 py-3 px-4 font-medium">Draw Type</th>
                     <th className="text-left text-white/80 py-3 px-4 font-medium">Draw Date</th>
                   </tr>
                 </thead>
@@ -177,6 +240,21 @@ export default function Winners() {
                       <td className="py-4 px-4 text-white font-medium">{winner.name}</td>
                       <td className="py-4 px-4 text-white/80">{winner.department}</td>
                       <td className="py-4 px-4 text-white/80">{winner.supervisor}</td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center space-x-1">
+                          <Ticket className="w-4 h-4 text-yellow-400" />
+                          <span className="text-yellow-400 font-bold">{winner.tickets}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          winner.drawType === 'discovery-70' 
+                            ? 'bg-blue-500/20 text-blue-200' 
+                            : 'bg-purple-500/20 text-purple-200'
+                        }`}>
+                          {winner.drawType === 'discovery-70' ? '70%' : '80%'} Discovery
+                        </span>
+                      </td>
                       <td className="py-4 px-4 text-white/80">
                         {new Date(winner.drawDate).toLocaleDateString('en-US', {
                           year: 'numeric',
@@ -202,7 +280,7 @@ export default function Winners() {
             </h3>
             <p className="text-white/80">
               {winners.length === 0 
-                ? 'Start a raffle draw to see winners here!'
+                ? 'Start a 70% or 80% Discovery raffle draw to see winners here!'
                 : 'Try adjusting your search or filter criteria.'
               }
             </p>

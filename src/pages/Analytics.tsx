@@ -10,12 +10,13 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { BarChart3, TrendingUp, Users, Calendar } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, Calendar, Ticket } from 'lucide-react';
 import Layout from '../components/Layout';
 import Navigation from '../components/Navigation';
 import GlassCard from '../components/GlassCard';
 import { getWinners } from '../utils/storage';
 import { getAllContestants, getContestantsByDepartment } from '../utils/raffle';
+import type { DrawType } from '../types';
 
 ChartJS.register(
   CategoryScale,
@@ -28,7 +29,9 @@ ChartJS.register(
 
 export default function Analytics() {
   const winners = getWinners();
-  const allContestants = getAllContestants();
+  const contestants70 = getAllContestants('discovery-70');
+  const contestants80 = getAllContestants('discovery-80');
+  const allContestants = [...contestants70, ...contestants80];
 
   const departmentData = [
     'International Messaging',
@@ -36,19 +39,38 @@ export default function Analytics() {
     'APAC'
   ].map(dept => ({
     department: dept,
-    total: getContestantsByDepartment(dept as any).length,
+    total70: getContestantsByDepartment(dept as any, 'discovery-70').length,
+    total80: getContestantsByDepartment(dept as any, 'discovery-80').length,
+    winners70: winners.filter(w => w.department === dept && w.drawType === 'discovery-70').length,
+    winners80: winners.filter(w => w.department === dept && w.drawType === 'discovery-80').length,
     winners: winners.filter(w => w.department === dept).length,
-    percentage: getContestantsByDepartment(dept as any).length > 0 
-      ? Math.round((winners.filter(w => w.department === dept).length / getContestantsByDepartment(dept as any).length) * 100)
+    total: getContestantsByDepartment(dept as any, 'discovery-70').length + getContestantsByDepartment(dept as any, 'discovery-80').length,
+    percentage: (getContestantsByDepartment(dept as any, 'discovery-70').length + getContestantsByDepartment(dept as any, 'discovery-80').length) > 0 
+      ? Math.round((winners.filter(w => w.department === dept).length / (getContestantsByDepartment(dept as any, 'discovery-70').length + getContestantsByDepartment(dept as any, 'discovery-80').length)) * 100)
       : 0
   }));
 
+  const drawTypeData = [
+    {
+      drawType: '70% Discovery',
+      contestants: contestants70.length,
+      winners: winners.filter(w => w.drawType === 'discovery-70').length,
+      tickets: contestants70.reduce((sum, c) => sum + c.tickets, 0)
+    },
+    {
+      drawType: '80% Discovery',
+      contestants: contestants80.length,
+      winners: winners.filter(w => w.drawType === 'discovery-80').length,
+      tickets: contestants80.reduce((sum, c) => sum + c.tickets, 0)
+    }
+  ];
+
   const chartData = {
-    labels: departmentData.map(d => d.department.replace(' Messaging', '')),
+    labels: ['70% Discovery', '80% Discovery'],
     datasets: [
       {
         label: 'Total Contestants',
-        data: departmentData.map(d => d.total),
+        data: drawTypeData.map(d => d.contestants),
         backgroundColor: 'rgba(59, 130, 246, 0.3)',
         borderColor: 'rgba(59, 130, 246, 0.8)',
         borderWidth: 2,
@@ -57,9 +79,18 @@ export default function Analytics() {
       },
       {
         label: 'Winners Selected',
-        data: departmentData.map(d => d.winners),
+        data: drawTypeData.map(d => d.winners),
         backgroundColor: 'rgba(34, 197, 94, 0.3)',
         borderColor: 'rgba(34, 197, 94, 0.8)',
+        borderWidth: 2,
+        borderRadius: 8,
+        borderSkipped: false,
+      },
+      {
+        label: 'Total Tickets',
+        data: drawTypeData.map(d => d.tickets),
+        backgroundColor: 'rgba(251, 191, 36, 0.3)',
+        borderColor: 'rgba(251, 191, 36, 0.8)',
         borderWidth: 2,
         borderRadius: 8,
         borderSkipped: false,
@@ -86,7 +117,7 @@ export default function Analytics() {
       },
       title: {
         display: true,
-        text: 'Contestants vs Winners by Department',
+        text: 'Discovery Draws Overview',
         color: 'rgba(255, 255, 255, 0.9)',
         font: {
           size: 18,
@@ -102,16 +133,6 @@ export default function Analytics() {
         borderWidth: 1,
         cornerRadius: 8,
         displayColors: true,
-        callbacks: {
-          label: function(context: any) {
-            const department = departmentData[context.dataIndex];
-            if (context.datasetIndex === 0) {
-              return `Total: ${context.parsed.y}`;
-            } else {
-              return `Winners: ${context.parsed.y} (${department.percentage}%)`;
-            }
-          }
-        }
       }
     },
     scales: {
@@ -162,19 +183,25 @@ export default function Analytics() {
   const getRecentDrawsData = () => {
     const drawsByDate = winners.reduce((acc: any, winner) => {
       const date = new Date(winner.drawDate).toDateString();
-      if (!acc[date]) {
-        acc[date] = 0;
+      const key = `${date}-${winner.drawType}`;
+      if (!acc[key]) {
+        acc[key] = {
+          date,
+          drawType: winner.drawType,
+          count: 0
+        };
       }
-      acc[date]++;
+      acc[key].count++;
       return acc;
     }, {});
 
-    return Object.entries(drawsByDate)
-      .sort((a: any, b: any) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+    return Object.values(drawsByDate)
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(-7); // Last 7 draws
   };
 
   const recentDraws = getRecentDrawsData();
+  const totalTickets = contestants70.reduce((sum, c) => sum + c.tickets, 0) + contestants80.reduce((sum, c) => sum + c.tickets, 0);
 
   return (
     <Layout title="Analytics Dashboard">
@@ -182,13 +209,13 @@ export default function Analytics() {
       
       <div className="space-y-8">
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <GlassCard className="p-6" hover>
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-white/80 text-sm font-medium">Total Contestants</h3>
-                <p className="text-3xl font-bold text-white mt-1">{allContestants.length}</p>
-                <p className="text-white/60 text-xs mt-2">Across all departments</p>
+                <p className="text-3xl font-bold text-white mt-1">{contestants70.length + contestants80.length}</p>
+                <p className="text-white/60 text-xs mt-2">70%: {contestants70.length} • 80%: {contestants80.length}</p>
               </div>
               <div className="p-3 rounded-full bg-blue-500/20 backdrop-blur-md">
                 <Users className="w-6 h-6 text-blue-300" />
@@ -202,11 +229,24 @@ export default function Analytics() {
                 <h3 className="text-white/80 text-sm font-medium">Winners Selected</h3>
                 <p className="text-3xl font-bold text-white mt-1">{winners.length}</p>
                 <p className="text-white/60 text-xs mt-2">
-                  {allContestants.length > 0 ? Math.round((winners.length / allContestants.length) * 100) : 0}% of total pool
+                  70%: {winners.filter(w => w.drawType === 'discovery-70').length} • 80%: {winners.filter(w => w.drawType === 'discovery-80').length}
                 </p>
               </div>
               <div className="p-3 rounded-full bg-green-500/20 backdrop-blur-md">
                 <TrendingUp className="w-6 h-6 text-green-300" />
+              </div>
+            </div>
+          </GlassCard>
+
+          <GlassCard className="p-6" hover>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-white/80 text-sm font-medium">Total Tickets</h3>
+                <p className="text-3xl font-bold text-white mt-1">{totalTickets}</p>
+                <p className="text-white/60 text-xs mt-2">Weighted probability system</p>
+              </div>
+              <div className="p-3 rounded-full bg-orange-500/20 backdrop-blur-md">
+                <Ticket className="w-6 h-6 text-orange-300" />
               </div>
             </div>
           </GlassCard>
@@ -228,11 +268,11 @@ export default function Analytics() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-white/80 text-sm font-medium">Remaining Pool</h3>
-                <p className="text-3xl font-bold text-white mt-1">{allContestants.length - winners.length}</p>
+                <p className="text-3xl font-bold text-white mt-1">{contestants70.length + contestants80.length - winners.length}</p>
                 <p className="text-white/60 text-xs mt-2">Available for future draws</p>
               </div>
-              <div className="p-3 rounded-full bg-orange-500/20 backdrop-blur-md">
-                <BarChart3 className="w-6 h-6 text-orange-300" />
+              <div className="p-3 rounded-full bg-gray-500/20 backdrop-blur-md">
+                <BarChart3 className="w-6 h-6 text-gray-300" />
               </div>
             </div>
           </GlassCard>
@@ -267,9 +307,15 @@ export default function Analytics() {
                     <span className="text-white/80 text-sm">{dept.percentage}%</span>
                   </div>
                   
-                  <div className="flex justify-between text-sm text-white/70 mb-2">
-                    <span>Total: {dept.total}</span>
-                    <span>Winners: {dept.winners}</span>
+                  <div className="grid grid-cols-2 gap-4 text-sm text-white/70 mb-2">
+                    <div>
+                      <div>70% Discovery:</div>
+                      <div className="text-xs">Contestants: {dept.total70} • Winners: {dept.winners70}</div>
+                    </div>
+                    <div>
+                      <div>80% Discovery:</div>
+                      <div className="text-xs">Contestants: {dept.total80} • Winners: {dept.winners80}</div>
+                    </div>
                   </div>
 
                   <div className="w-full bg-white/20 rounded-full h-2">
@@ -293,25 +339,34 @@ export default function Analytics() {
             
             {recentDraws.length > 0 ? (
               <div className="space-y-3">
-                {recentDraws.map(([date, count]: any, index) => (
+                {recentDraws.map((draw: any, index) => (
                   <motion.div
-                    key={date}
+                    key={`${draw.date}-${draw.drawType}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
                     className="flex justify-between items-center p-3 rounded-lg bg-white/10 backdrop-blur-md"
                   >
-                    <span className="text-white font-medium">
-                      {new Date(date).toLocaleDateString('en-US', { 
+                    <div>
+                      <span className="text-white font-medium">
+                        {new Date(draw.date).toLocaleDateString('en-US', { 
                         month: 'short', 
                         day: 'numeric',
                         weekday: 'short'
                       })}
-                    </span>
+                      </span>
+                      <div className={`text-xs px-2 py-1 rounded-full mt-1 inline-block ${
+                        draw.drawType === 'discovery-70' 
+                          ? 'bg-blue-500/20 text-blue-200' 
+                          : 'bg-purple-500/20 text-purple-200'
+                      }`}>
+                        {draw.drawType === 'discovery-70' ? '70%' : '80%'} Discovery
+                      </div>
+                    </div>
                     <div className="flex items-center space-x-2">
-                      <span className="text-white/80">{count} winner{count > 1 ? 's' : ''}</span>
+                      <span className="text-white/80">{draw.count} winner{draw.count > 1 ? 's' : ''}</span>
                       <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-bold">
-                        {count}
+                        {draw.count}
                       </div>
                     </div>
                   </motion.div>
@@ -332,34 +387,44 @@ export default function Analytics() {
         {winners.length > 0 && (
           <GlassCard className="p-6">
             <h3 className="text-xl font-bold text-white mb-4">Key Insights</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="p-4 rounded-lg bg-blue-500/10 backdrop-blur-md border border-blue-400/20">
-                <h4 className="text-blue-200 font-medium mb-2">Most Active Department</h4>
+                <h4 className="text-blue-200 font-medium mb-2">70% Discovery</h4>
                 <p className="text-white text-lg">
-                  {departmentData.reduce((max, dept) => dept.winners > max.winners ? dept : max).department}
+                  {winners.filter(w => w.drawType === 'discovery-70').length} winners
                 </p>
                 <p className="text-blue-200/70 text-sm">
-                  {departmentData.reduce((max, dept) => dept.winners > max.winners ? dept : max).winners} winners selected
-                </p>
-              </div>
-              
-              <div className="p-4 rounded-lg bg-green-500/10 backdrop-blur-md border border-green-400/20">
-                <h4 className="text-green-200 font-medium mb-2">Completion Rate</h4>
-                <p className="text-white text-lg">
-                  {Math.round((winners.length / allContestants.length) * 100)}%
-                </p>
-                <p className="text-green-200/70 text-sm">
-                  of total contestant pool selected
+                  from {contestants70.length} contestants
                 </p>
               </div>
               
               <div className="p-4 rounded-lg bg-purple-500/10 backdrop-blur-md border border-purple-400/20">
-                <h4 className="text-purple-200 font-medium mb-2">Average per Draw</h4>
+                <h4 className="text-purple-200 font-medium mb-2">80% Discovery</h4>
                 <p className="text-white text-lg">
-                  {recentDraws.length > 0 ? Math.round(winners.length / recentDraws.length) : 0}
+                  {winners.filter(w => w.drawType === 'discovery-80').length} winners
                 </p>
                 <p className="text-purple-200/70 text-sm">
-                  winners selected per session
+                  from {contestants80.length} contestants
+                </p>
+              </div>
+              
+              <div className="p-4 rounded-lg bg-orange-500/10 backdrop-blur-md border border-orange-400/20">
+                <h4 className="text-orange-200 font-medium mb-2">Ticket Distribution</h4>
+                <p className="text-white text-lg">
+                  {Math.round(totalTickets / (contestants70.length + contestants80.length))}
+                </p>
+                <p className="text-orange-200/70 text-sm">
+                  average tickets per contestant
+                </p>
+              </div>
+
+              <div className="p-4 rounded-lg bg-green-500/10 backdrop-blur-md border border-green-400/20">
+                <h4 className="text-green-200 font-medium mb-2">Most Active Department</h4>
+                <p className="text-white text-lg">
+                  {departmentData.reduce((max, dept) => dept.winners > max.winners ? dept : max).department.replace(' Messaging', '')}
+                </p>
+                <p className="text-green-200/70 text-sm">
+                  {departmentData.reduce((max, dept) => dept.winners > max.winners ? dept : max).winners} total winners
                 </p>
               </div>
             </div>
